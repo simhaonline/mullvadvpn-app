@@ -678,7 +678,10 @@ impl ManagementService for ManagementServiceImpl {
         }
     }
 
-    async fn get_split_tunnel_apps(&self, _: Request<()>) -> ServiceResult<Self::GetSplitTunnelAppsStream> {
+    async fn get_split_tunnel_apps(
+        &self,
+        _: Request<()>,
+    ) -> ServiceResult<Self::GetSplitTunnelAppsStream> {
         #[cfg(windows)]
         {
             log::debug!("get_split_tunnel_apps");
