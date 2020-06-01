@@ -261,6 +261,7 @@ message Settings {
 	bool auto_connect = 7;
 	TunnelOptions tunnel_options = 8;
 	bool show_beta_releases = 9;
+	bool enable_exclusions = 10;
 }
 
 message RelaySettings {

@@ -756,6 +756,10 @@ fn convert_settings(settings: &Settings) -> types::Settings {
         auto_connect: settings.auto_connect,
         tunnel_options: Some(convert_tunnel_options(&settings.tunnel_options)),
         show_beta_releases: settings.show_beta_releases,
+        #[cfg(windows)]
+        enable_exclusions: settings.enable_exclusions,
+        #[cfg(not(windows))]
+        enable_exclusions: false,
     }
 }
 
