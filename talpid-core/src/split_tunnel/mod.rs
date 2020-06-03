@@ -6,7 +6,7 @@ mod imp;
 pub use imp::*;
 
 #[cfg(windows)]
-#[path = "windows.rs"]
+#[path = "windows/mod.rs"]
 mod imp;
 
 #[cfg(windows)]

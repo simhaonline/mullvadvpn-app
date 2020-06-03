@@ -1,3 +1,6 @@
+use crate::logging::windows::log_sink;
+use std::{ffi::OsStr, os::windows::ffi::OsStrExt};
+
 /// Errors that may occur in [`SplitTunnel`].
 #[derive(err_derive::Error, Debug)]
 pub enum Error {
@@ -7,31 +10,24 @@ pub enum Error {
 }
 
 /// Manages applications whose traffic to exclude from the tunnel.
-pub struct SplitTunnel {
-    paths: Vec<String>,
-}
+pub struct SplitTunnel(());
 
 impl SplitTunnel {
     /// Initialize the driver.
     pub fn new() -> Result<Self, Error> {
-        // WinExclude_Initialize();
-        Ok(SplitTunnel { paths: vec![] })
+        // TODO
+        Ok(SplitTunnel(()))
     }
 
     /// Set a list of applications to exclude from the tunnel.
-    pub fn set_paths<T: AsRef<str>>(&mut self, paths: &[T]) -> Result<(), Error> {
-        self.paths.clear();
-        for path in paths {
-            self.paths.push(path.as_ref().to_string());
-        }
-
-        // WinExclude_SetAppPaths
+    pub fn set_paths<T: AsRef<OsStr>>(&mut self, paths: &[T]) -> Result<(), Error> {
+        // TODO
         Ok(())
     }
 }
 
 impl Drop for SplitTunnel {
     fn drop(&mut self) {
-        // WinExclude_Deinitialize();
+        // TODO: Deinitialize driver here
     }
 }
