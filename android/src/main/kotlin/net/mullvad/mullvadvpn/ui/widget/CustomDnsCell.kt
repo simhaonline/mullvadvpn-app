@@ -9,8 +9,23 @@ import org.apache.commons.validator.routines.InetAddressValidator
 
 class CustomDnsCell : InputCell {
     companion object {
+        private val STARTING_SLASH = Regex("^/")
         private val VALIDATOR = InetAddressValidator.getInstance()
     }
+
+    var value: InetAddress?
+        get() {
+            val address = text
+
+            if (VALIDATOR.isValid(address)) {
+                return InetAddress.getByName(address)
+            } else {
+                return null
+            }
+        }
+        set(value) {
+            text = (value?.toString() ?: "").replace(STARTING_SLASH, "")
+        }
 
     var onSubmitDnsServer: ((InetAddress?) -> Unit)? = null
 
