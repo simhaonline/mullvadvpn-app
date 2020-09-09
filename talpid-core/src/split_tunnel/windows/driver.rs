@@ -9,6 +9,7 @@ use std::{
     fs::{self, OpenOptions},
     io,
     mem::{self, size_of},
+    net::{Ipv4Addr, Ipv6Addr},
     os::windows::{
         ffi::OsStrExt,
         fs::OpenOptionsExt,
@@ -16,10 +17,13 @@ use std::{
     },
     ptr,
 };
-use winapi::um::{
-    ioapiset::DeviceIoControl,
-    tlhelp32::TH32CS_SNAPPROCESS,
-    winioctl::{FILE_ANY_ACCESS, METHOD_BUFFERED, METHOD_NEITHER},
+use winapi::{
+    shared::{in6addr::IN6_ADDR, inaddr::IN_ADDR},
+    um::{
+        ioapiset::DeviceIoControl,
+        tlhelp32::TH32CS_SNAPPROCESS,
+        winioctl::{FILE_ANY_ACCESS, METHOD_BUFFERED, METHOD_NEITHER},
+    },
 };
 
 const DRIVER_SYMBOLIC_NAME: &str = "\\\\.\\MULLVADSPLITTUNNEL";
@@ -123,6 +127,63 @@ impl DeviceHandle {
         Ok(())
     }
 
+    pub fn register_ips(
+        handle: RawHandle,
+        tunnel_ipv4: Ipv4Addr,
+        tunnel_ipv6: Option<Ipv6Addr>,
+        internet_ipv4: Ipv4Addr,
+        internet_ipv6: Option<Ipv6Addr>,
+    ) -> io::Result<()> {
+        let mut addresses: SplitTunnelAddresses = unsafe { mem::zeroed() };
+
+        unsafe {
+            let tunnel_ipv4 = tunnel_ipv4.octets();
+            ptr::copy_nonoverlapping(
+                &tunnel_ipv4[0] as *const u8,
+                &mut addresses.tunnel_ipv4 as *mut _ as *mut u8,
+                tunnel_ipv4.len(),
+            );
+
+            if let Some(tunnel_ipv6) = tunnel_ipv6 {
+                let tunnel_ipv6 = tunnel_ipv6.octets();
+                ptr::copy_nonoverlapping(
+                    &tunnel_ipv6[0] as *const u8,
+                    &mut addresses.tunnel_ipv6 as *mut _ as *mut u8,
+                    tunnel_ipv6.len(),
+                );
+            }
+
+            let internet_ipv4 = internet_ipv4.octets();
+            ptr::copy_nonoverlapping(
+                &internet_ipv4[0] as *const u8,
+                &mut addresses.internet_ipv4 as *mut _ as *mut u8,
+                internet_ipv4.len(),
+            );
+
+            if let Some(internet_ipv6) = internet_ipv6 {
+                let internet_ipv6 = internet_ipv6.octets();
+                ptr::copy_nonoverlapping(
+                    &internet_ipv6[0] as *const u8,
+                    &mut addresses.internet_ipv6 as *mut _ as *mut u8,
+                    internet_ipv6.len(),
+                );
+            }
+        }
+
+        let buffer = &addresses as *const _ as *const u8;
+        let buffer =
+            unsafe { std::slice::from_raw_parts(buffer, size_of::<SplitTunnelAddresses>()) };
+
+        device_io_control(
+            handle,
+            DriverIoctlCode::RegisterIpAddresses as u32,
+            Some(buffer),
+            0,
+        )?;
+
+        Ok(())
+    }
+
     pub fn get_driver_state(&self) -> io::Result<DriverState> {
         let buffer = device_io_control(
             self.handle.as_raw_handle(),
@@ -151,6 +212,14 @@ impl DeviceHandle {
 
         Ok(())
     }
+}
+
+#[repr(C)]
+struct SplitTunnelAddresses {
+    tunnel_ipv4: IN_ADDR,
+    internet_ipv4: IN_ADDR,
+    tunnel_ipv6: IN6_ADDR,
+    internet_ipv6: IN6_ADDR,
 }
 
 #[repr(C)]
