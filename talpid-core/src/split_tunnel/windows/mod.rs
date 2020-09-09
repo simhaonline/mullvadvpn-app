@@ -1,3 +1,4 @@
+mod driver;
 mod windows;
 
 use crate::logging::windows::log_sink;
