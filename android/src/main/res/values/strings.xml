@@ -169,4 +169,7 @@
     <string name="create_account_url">https://mullvad.net/en/account/create</string>
     <string name="download_url">https://mullvad.net/en/download</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>
+    <string name="custom_dns">Custom DNS server</string>
+    <string name="custom_dns_footer">Override to use a custom DNS server instead of Mullvad\'s
+    while connected.</string>
 </resources>

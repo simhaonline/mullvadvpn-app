@@ -42,6 +42,12 @@
                           android:layout_marginLeft="@dimen/side_margin"
                           android:text="@string/settings_advanced"
                           style="@style/SettingsExpandedHeader" />
+                <net.mullvad.mullvadvpn.ui.widget.CustomDnsCell android:id="@+id/custom_dns"
+                                                                android:layout_width="match_parent"
+                                                                android:layout_height="wrap_content"
+                                                                android:layout_marginTop="@dimen/vertical_space"
+                                                                mullvad:text="@string/custom_dns"
+                                                                mullvad:footer="@string/custom_dns_footer" />
                 <net.mullvad.mullvadvpn.ui.widget.MtuCell android:id="@+id/wireguard_mtu"
                                                           android:layout_width="match_parent"
                                                           android:layout_height="wrap_content"
