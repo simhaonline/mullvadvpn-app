@@ -1,4 +1,9 @@
-use std::{io, mem, os::windows::io::RawHandle, ptr};
+use std::{
+    fs::{self, OpenOptions},
+    io, mem,
+    os::windows::{fs::OpenOptionsExt, io::RawHandle},
+    ptr,
+};
 use winapi::um::{
     ioapiset::DeviceIoControl,
     winioctl::{FILE_ANY_ACCESS, METHOD_BUFFERED, METHOD_NEITHER},
@@ -44,6 +49,24 @@ enum DriverState {
     Engaged = 4,
     // Driver is unloading.
     Terminating = 5,
+}
+
+pub struct DeviceHandle {
+    handle: fs::File,
+}
+
+impl DeviceHandle {
+    pub fn new() -> io::Result<Self> {
+        // Connect to the driver
+        let handle = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .share_mode(0)
+            .custom_flags(0)
+            .attributes(0)
+            .open(DRIVER_SYMBOLIC_NAME)?;
+        Ok(Self { handle })
+    }
 }
 
 /// Send an IOCTL code to the given device handle.
