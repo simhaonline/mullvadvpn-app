@@ -1,6 +1,11 @@
-use super::windows::get_final_path_name;
+use super::windows::{
+    get_final_path_name, get_process_creation_time, get_process_device_path, open_process,
+    ProcessAccess, ProcessSnapshot,
+};
 use std::{
-    ffi::OsStr,
+    cell::RefCell,
+    collections::HashMap,
+    ffi::{OsStr, OsString},
     fs::{self, OpenOptions},
     io,
     mem::{self, size_of},
@@ -13,6 +18,7 @@ use std::{
 };
 use winapi::um::{
     ioapiset::DeviceIoControl,
+    tlhelp32::TH32CS_SNAPPROCESS,
     winioctl::{FILE_ANY_ACCESS, METHOD_BUFFERED, METHOD_NEITHER},
 };
 
@@ -82,6 +88,17 @@ impl DeviceHandle {
             device.initialize()?;
         }
 
+        // Initialize process tree
+        log::debug!("Obtaining state");
+        let state = device.get_driver_state()?;
+        if state == DriverState::Initialized {
+            log::debug!("Registering processes");
+            device.register_processes()?;
+        }
+
+        let state = device.get_driver_state()?;
+        log::debug!("INITIALIZED DRIVER STATE: {:?}", state);
+
         Ok(device)
     }
 
@@ -90,6 +107,17 @@ impl DeviceHandle {
             self.handle.as_raw_handle(),
             DriverIoctlCode::Initialize as u32,
             None,
+            0,
+        )?;
+        Ok(())
+    }
+
+    fn register_processes(&self) -> io::Result<()> {
+        let process_tree_buffer = serialize_process_tree(build_process_tree()?)?;
+        device_io_control(
+            self.handle.as_raw_handle(),
+            DriverIoctlCode::RegisterProcesses as u32,
+            Some(&process_tree_buffer),
             0,
         )?;
         Ok(())
@@ -198,6 +226,151 @@ fn make_process_config<T: AsRef<OsStr>>(apps: &[T]) -> Vec<u8> {
     }
 
     buffer
+}
+
+#[derive(Debug)]
+struct ProcessInfo {
+    pid: u32,
+    parent_pid: u32,
+    creation_time: u64,
+    device_path: OsString,
+}
+
+/// List process identifiers, their parents, and their device paths.
+fn build_process_tree() -> io::Result<Vec<ProcessInfo>> {
+    let mut process_info = HashMap::new();
+
+    let snap = ProcessSnapshot::new(TH32CS_SNAPPROCESS, 0)?;
+    for entry in snap.entries() {
+        let entry = entry?;
+
+        let process = match open_process(ProcessAccess::QueryLimitedInformation, false, entry.pid) {
+            Ok(handle) => Ok(handle),
+            Err(error) => {
+                // Skip process objects that cannot be opened
+                match error.kind() {
+                    // System process
+                    io::ErrorKind::PermissionDenied => continue,
+                    // System idle or csrss process
+                    io::ErrorKind::InvalidInput => continue,
+                    _ => Err(error),
+                }
+            }
+        }?;
+
+        // TODO: Skip objects whose paths or timestamps cannot be obtained?
+
+        process_info.insert(
+            entry.pid,
+            RefCell::new(ProcessInfo {
+                pid: entry.pid,
+                parent_pid: entry.parent_pid,
+                creation_time: get_process_creation_time(process.get_raw()).unwrap_or(0),
+                device_path: get_process_device_path(process.get_raw())
+                    .unwrap_or(OsString::from("")),
+            }),
+        );
+    }
+
+    // Handle pid recycling
+    // If the "parent" is younger than the process itself, it is not our parent.
+    for info in process_info.values() {
+        let mut info = info.borrow_mut();
+        let parent_pid = info.parent_pid;
+        if parent_pid == 0 {
+            continue;
+        }
+        if let Some(parent_info) = process_info.get(&parent_pid) {
+            if parent_info.borrow_mut().creation_time > info.creation_time {
+                info.parent_pid = 0;
+            }
+        }
+    }
+
+    Ok(process_info
+        .into_iter()
+        .map(|(_, info)| info.into_inner())
+        .collect())
+}
+
+#[repr(C)]
+struct ProcessRegistryHeader {
+    // Number of entries immediately following the header.
+    num_entries: usize,
+    // Total byte length: header + entries + string buffer.
+    total_length: usize,
+}
+
+#[repr(C)]
+struct ProcessRegistryEntry {
+    pid: RawHandle,
+    parent_pid: RawHandle,
+    // Image name offset (following the last entry).
+    image_name_offset: usize,
+    // Image name length.
+    image_name_size: u16,
+}
+
+fn serialize_process_tree(processes: Vec<ProcessInfo>) -> Result<Vec<u8>, io::Error> {
+    // Construct a buffer:
+    //  ProcessRegistryHeader
+    //  ProcessRegistryEntry..
+    //  Image names..
+
+    let total_string_size: usize = processes
+        .iter()
+        .map(|info| size_of::<u16>() * info.device_path.len())
+        .sum();
+    let total_buffer_size = size_of::<ProcessRegistryHeader>()
+        + size_of::<ProcessRegistryEntry>() * processes.len()
+        + total_string_size;
+
+    let mut buffer = Vec::<u8>::new();
+    buffer.resize(total_buffer_size, 0);
+
+    let header = ProcessRegistryHeader {
+        num_entries: processes.len(),
+        total_length: total_buffer_size,
+    };
+    unsafe {
+        ptr::copy_nonoverlapping(
+            &header as *const _ as *const u8,
+            buffer.as_mut_ptr(),
+            size_of::<ProcessRegistryHeader>(),
+        )
+    };
+
+    let mut entries = unsafe {
+        std::slice::from_raw_parts_mut(
+            &mut buffer[size_of::<ProcessRegistryHeader>()..] as *mut _
+                as *mut ProcessRegistryEntry,
+            processes.len(),
+        )
+    };
+
+    let string_data = unsafe {
+        std::slice::from_raw_parts_mut(
+            &mut buffer[(total_buffer_size - total_string_size)..] as *mut _ as *mut u16,
+            total_string_size / size_of::<u16>(),
+        )
+    };
+    let mut string_offset = 0;
+
+    for (i, entry) in processes.into_iter().enumerate() {
+        entries[i].pid = entry.pid as usize as RawHandle;
+        entries[i].parent_pid = entry.parent_pid as usize as RawHandle;
+
+        if !entry.device_path.is_empty() {
+            string_data[string_offset..string_offset + entry.device_path.len()]
+                .copy_from_slice(&entry.device_path.encode_wide().collect::<Vec<_>>());
+            entries[i].image_name_size = (entry.device_path.len() * size_of::<u16>()) as u16;
+            entries[i].image_name_offset = string_offset * size_of::<u16>();
+
+            string_offset += entry.device_path.len();
+        }
+    }
+
+    Ok(buffer)
 }
 
 /// Send an IOCTL code to the given device handle.
