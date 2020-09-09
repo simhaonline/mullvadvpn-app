@@ -29,6 +29,8 @@ class AdvancedFragment : ServiceDependentFragment(OnNoService.GoBack) {
             onSubmitDnsServer = { dnsServer ->
                 customDns.dnsServerAddress = dnsServer
             }
+
+            value = customDns.dnsServerAddress
         }
 
         wireguardMtuInput = view.findViewById<MtuCell>(R.id.wireguard_mtu).apply {
