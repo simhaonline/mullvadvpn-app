@@ -8,6 +8,7 @@ import android.os.Binder
 import android.os.IBinder
 import android.util.Log
 import java.io.File
+import java.net.InetAddress
 import kotlin.properties.Delegates.observable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -64,6 +65,7 @@ class MullvadVpnService : TalpidVpnService() {
         oldNotification?.onDestroy()
     }
 
+    private lateinit var customDns: CustomDns
     private lateinit var keyguardManager: KeyguardManager
     private lateinit var notificationManager: ForegroundNotificationManager
     private lateinit var tunnelStateUpdater: TunnelStateUpdater
@@ -88,6 +90,13 @@ class MullvadVpnService : TalpidVpnService() {
         keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
         notificationManager = ForegroundNotificationManager(this, serviceNotifier, keyguardManager)
         tunnelStateUpdater = TunnelStateUpdater(this, serviceNotifier)
+
+        customDns = CustomDns().apply {
+            onChange = { _ ->
+                markTunAsStale()
+                instance?.connectionProxy?.reconnect()
+            }
+        }
 
         setUp()
     }
@@ -163,6 +172,18 @@ class MullvadVpnService : TalpidVpnService() {
 
         fun stop() {
             this@MullvadVpnService.stop()
+        }
+    }
+
+    protected override fun prepareDnsServers(
+        relayDnsServers: List<InetAddress>
+    ): List<InetAddress> {
+        val customDnsServer = customDns.dnsServerAddress
+
+        if (customDnsServer != null) {
+            return listOf(customDnsServer)
+        } else {
+            return relayDnsServers
         }
     }
 
