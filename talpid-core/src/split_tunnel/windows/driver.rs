@@ -1,8 +1,11 @@
+use super::windows::get_final_path_name;
 use std::{
+    ffi::OsStr,
     fs::{self, OpenOptions},
     io,
     mem::{self, size_of},
     os::windows::{
+        ffi::OsStrExt,
         fs::OpenOptionsExt,
         io::{AsRawHandle, RawHandle},
     },
@@ -103,6 +106,98 @@ impl DeviceHandle {
 
         Ok(unsafe { deserialize_buffer(&buffer) })
     }
+
+    pub fn set_config<T: AsRef<OsStr>>(&self, apps: &[T]) -> io::Result<()> {
+        let mut device_paths = Vec::with_capacity(apps.len());
+        for app in apps.as_ref() {
+            device_paths.push(get_final_path_name(app)?);
+        }
+        let config = make_process_config(&device_paths);
+
+        device_io_control(
+            self.handle.as_raw_handle(),
+            DriverIoctlCode::SetConfiguration as u32,
+            Some(&config),
+            0,
+        )?;
+
+        Ok(())
+    }
+}
+
+#[repr(C)]
+struct ConfigurationHeader {
+    // Number of entries immediately following the header.
+    num_entries: usize,
+    // Total byte length: header + entries + string buffer.
+    total_length: usize,
+}
+
+#[repr(C)]
+struct ConfigurationEntry {
+    // Offset into buffer region that follows all entries.
+    // The image name uses the physical path.
+    name_offset: usize,
+    // Byte length for non-null terminated wide char string.
+    name_length: u16,
+}
+
+/// Create a buffer containing information.
+/// This consists of a header and number of entries, followed by the same number of strings.
+fn make_process_config<T: AsRef<OsStr>>(apps: &[T]) -> Vec<u8> {
+    // TODO: possible without copying?
+    let apps: Vec<Vec<u16>> = apps
+        .iter()
+        .map(|app| app.as_ref().encode_wide().collect())
+        .collect();
+
+    let total_string_size: usize = apps.iter().map(|app| size_of::<u16>() * app.len()).sum();
+
+    let total_buffer_size = size_of::<ConfigurationHeader>()
+        + size_of::<ConfigurationEntry>() * apps.len()
+        + total_string_size;
+
+    let mut buffer = Vec::<u8>::new();
+    buffer.resize(total_buffer_size, 0);
+
+    // Serialize configuration header
+    let header = ConfigurationHeader {
+        num_entries: apps.len(),
+        total_length: total_buffer_size,
+    };
+    unsafe {
+        ptr::copy_nonoverlapping(
+            &header as *const _ as *const u8,
+            buffer.as_mut_ptr(),
+            size_of::<ConfigurationHeader>(),
+        )
+    };
+
+    // Serialize configuration entries and strings
+    let mut entries = unsafe {
+        std::slice::from_raw_parts_mut(
+            &mut buffer[size_of::<ConfigurationHeader>()..] as *mut _ as *mut ConfigurationEntry,
+            apps.len(),
+        )
+    };
+    let string_data = unsafe {
+        std::slice::from_raw_parts_mut(
+            &mut buffer[(total_buffer_size - total_string_size)..] as *mut _ as *mut u16,
+            total_string_size / size_of::<u16>(),
+        )
+    };
+    let mut string_offset = 0;
+
+    for (i, app) in apps.iter().enumerate() {
+        string_data[string_offset..string_offset + app.len()].copy_from_slice(app);
+
+        entries[i].name_offset = string_offset * size_of::<u16>();
+        entries[i].name_length = (app.len() * size_of::<u16>()) as u16;
+
+        string_offset += app.len();
+    }
+
+    buffer
 }
 
 /// Send an IOCTL code to the given device handle.
