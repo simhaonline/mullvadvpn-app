@@ -6,6 +6,7 @@ class ServiceInstance(
     val daemon: MullvadDaemon,
     val connectionProxy: ConnectionProxy,
     val connectivityListener: ConnectivityListener,
+    val customDns: CustomDns,
     val settingsListener: SettingsListener,
     val splitTunneling: SplitTunneling
 ) {
