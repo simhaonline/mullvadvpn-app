@@ -1,3 +1,5 @@
+mod windows;
+
 use crate::logging::windows::log_sink;
 use std::{ffi::OsStr, os::windows::ffi::OsStrExt};
 

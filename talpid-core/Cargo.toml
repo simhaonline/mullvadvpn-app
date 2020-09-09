@@ -76,7 +76,7 @@ tun = "0.4.3"
 [target.'cfg(windows)'.dependencies]
 widestring = "0.4"
 winreg = "0.6"
-winapi = { version = "0.3.6", features = ["handleapi", "ifdef", "libloaderapi", "netioapi", "synchapi", "winbase", "winuser"] }
+winapi = { version = "0.3", features = ["handleapi", "ifdef", "libloaderapi", "netioapi", "psapi", "synchapi", "winbase", "winuser"] }
 socket2 = "0.3"
 pnet_packet = "0.26"
 
