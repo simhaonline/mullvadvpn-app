@@ -1,7 +1,11 @@
 use std::{
     fs::{self, OpenOptions},
-    io, mem,
-    os::windows::{fs::OpenOptionsExt, io::RawHandle},
+    io,
+    mem::{self, size_of},
+    os::windows::{
+        fs::OpenOptionsExt,
+        io::{AsRawHandle, RawHandle},
+    },
     ptr,
 };
 use winapi::um::{
@@ -34,7 +38,7 @@ enum DriverIoctlCode {
 #[derive(Debug, PartialEq)]
 #[repr(u32)]
 #[allow(dead_code)]
-enum DriverState {
+pub enum DriverState {
     // Default state after being loaded.
     None = 0,
     // DriverEntry has completed successfully.
@@ -66,6 +70,18 @@ impl DeviceHandle {
             .attributes(0)
             .open(DRIVER_SYMBOLIC_NAME)?;
         Ok(Self { handle })
+    }
+
+    pub fn get_driver_state(&self) -> io::Result<DriverState> {
+        let buffer = device_io_control(
+            self.handle.as_raw_handle(),
+            DriverIoctlCode::GetState as u32,
+            None,
+            size_of::<u64>() as u32,
+        )?
+        .unwrap();
+
+        Ok(unsafe { deserialize_buffer(&buffer) })
     }
 }
 
