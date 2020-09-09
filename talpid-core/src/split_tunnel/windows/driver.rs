@@ -69,7 +69,27 @@ impl DeviceHandle {
             .custom_flags(0)
             .attributes(0)
             .open(DRIVER_SYMBOLIC_NAME)?;
-        Ok(Self { handle })
+
+        let device = Self { handle };
+
+        // Initialize the driver
+
+        let state = device.get_driver_state()?;
+        if state == DriverState::Started {
+            device.initialize()?;
+        }
+
+        Ok(device)
+    }
+
+    fn initialize(&self) -> io::Result<()> {
+        device_io_control(
+            self.handle.as_raw_handle(),
+            DriverIoctlCode::Initialize as u32,
+            None,
+            0,
+        )?;
+        Ok(())
     }
 
     pub fn get_driver_state(&self) -> io::Result<DriverState> {
