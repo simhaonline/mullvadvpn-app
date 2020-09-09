@@ -2,8 +2,6 @@
           android:paddingHorizontal="8dp"
           android:paddingVertical="4dp"
           android:background="@drawable/cell_input_background"
-          android:digits="0123456789"
-          android:inputType="number"
           android:singleLine="true"
           android:imeOptions="flagNoPersonalizedLearning"
           android:textCursorDrawable="@drawable/cell_input_cursor"
