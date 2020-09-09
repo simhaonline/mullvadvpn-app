@@ -91,7 +91,7 @@ class MullvadVpnService : TalpidVpnService() {
         notificationManager = ForegroundNotificationManager(this, serviceNotifier, keyguardManager)
         tunnelStateUpdater = TunnelStateUpdater(this, serviceNotifier)
 
-        customDns = CustomDns().apply {
+        customDns = CustomDns(this).apply {
             onChange = { _ ->
                 markTunAsStale()
                 instance?.connectionProxy?.reconnect()
