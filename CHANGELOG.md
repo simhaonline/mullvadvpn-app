@@ -29,6 +29,9 @@ Line wrap the file at 100 chars.                                              Th
 - Add support for WireGuard's kernel module if it's loaded.
 - Add tray context menu with actions.
 
+#### Android
+- Add support for using a custom DNS server.
+
 ### Changed
 - Open and focus app when opened from context menu instead of toggling the window.
 
