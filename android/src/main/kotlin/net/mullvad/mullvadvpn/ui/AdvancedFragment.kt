@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import net.mullvad.mullvadvpn.R
 import net.mullvad.mullvadvpn.model.Settings
+import net.mullvad.mullvadvpn.ui.widget.CustomDnsCell
 import net.mullvad.mullvadvpn.ui.widget.MtuCell
 import net.mullvad.mullvadvpn.ui.widget.NavigateCell
 
@@ -22,6 +23,12 @@ class AdvancedFragment : ServiceDependentFragment(OnNoService.GoBack) {
 
         view.findViewById<View>(R.id.back).setOnClickListener {
             parentActivity.onBackPressed()
+        }
+
+        view.findViewById<CustomDnsCell>(R.id.custom_dns).apply {
+            onSubmitDnsServer = { dnsServer ->
+                customDns.dnsServerAddress = dnsServer
+            }
         }
 
         wireguardMtuInput = view.findViewById<MtuCell>(R.id.wireguard_mtu).apply {
