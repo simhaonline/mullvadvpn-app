@@ -128,7 +128,7 @@ impl DeviceHandle {
     }
 
     pub fn register_ips(
-        handle: RawHandle,
+        &self,
         tunnel_ipv4: Ipv4Addr,
         tunnel_ipv6: Option<Ipv6Addr>,
         internet_ipv4: Ipv4Addr,
@@ -175,7 +175,7 @@ impl DeviceHandle {
             unsafe { std::slice::from_raw_parts(buffer, size_of::<SplitTunnelAddresses>()) };
 
         device_io_control(
-            handle,
+            self.handle.as_raw_handle(),
             DriverIoctlCode::RegisterIpAddresses as u32,
             Some(buffer),
             0,
