@@ -83,6 +83,10 @@ open class TalpidVpnService : VpnService() {
         }
     }
 
+    protected open fun prepareDnsServers(relayDnsServers: List<InetAddress>): List<InetAddress> {
+        return relayDnsServers
+    }
+
     private fun createTun(config: TunConfig): Int {
         if (VpnService.prepare(this) != null) {
             // VPN permission wasn't granted
@@ -94,7 +98,7 @@ open class TalpidVpnService : VpnService() {
                 addAddress(address, prefixForAddress(address))
             }
 
-            for (dnsServer in config.dnsServers) {
+            for (dnsServer in prepareDnsServers(config.dnsServers)) {
                 addDnsServer(dnsServer)
             }
 
