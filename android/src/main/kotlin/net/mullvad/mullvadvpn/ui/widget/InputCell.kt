@@ -16,10 +16,10 @@ open class InputCell : Cell {
 
     protected val input =
         (LayoutInflater.from(context).inflate(R.layout.input_cell, null) as EditText).apply {
-            val width = resources.getDimensionPixelSize(R.dimen.cell_input_width)
             val height = resources.getDimensionPixelSize(R.dimen.cell_input_height)
 
-            layoutParams = LayoutParams(width, height, 0.0f)
+            layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, height, 0.0f)
+            minWidth = resources.getDimensionPixelSize(R.dimen.cell_input_width)
 
             addTextChangedListener(InputWatcher())
             setOnFocusChangeListener { _, newHasFocus -> hasFocus = newHasFocus }
