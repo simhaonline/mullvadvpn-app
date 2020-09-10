@@ -75,6 +75,7 @@ pub struct DeviceHandle {
 impl DeviceHandle {
     pub fn new() -> io::Result<Self> {
         // Connect to the driver
+        log::trace!("Connecting to the driver");
         let handle = OpenOptions::new()
             .read(true)
             .write(true)
@@ -87,8 +88,11 @@ impl DeviceHandle {
 
         // Initialize the driver
 
+        log::trace!("Obtaining state");
+
         let state = device.get_driver_state()?;
         if state == DriverState::Started {
+            log::trace!("Initializing driver");
             device.initialize()?;
         }
 

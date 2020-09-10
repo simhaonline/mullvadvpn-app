@@ -12,7 +12,7 @@ use std::{
 #[error(no_from)]
 pub enum Error {
     /// Failed to identify or initialize the driver
-    #[error(display = "Failed to initialize split tunneling")]
+    #[error(display = "Failed to find or initialize driver")]
     InitializationFailed(#[error(source)] io::Error),
 
     /// Failed to set paths to excluded applications
@@ -36,7 +36,7 @@ impl SplitTunnel {
     }
 
     /// Set a list of applications to exclude from the tunnel.
-    pub fn set_paths<T: AsRef<OsStr>>(&mut self, paths: &[T]) -> Result<(), Error> {
+    pub fn set_paths<T: AsRef<OsStr>>(&self, paths: &[T]) -> Result<(), Error> {
         self.0.set_config(paths).map_err(Error::SetConfiguration)
     }
 

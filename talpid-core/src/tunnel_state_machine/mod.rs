@@ -22,6 +22,10 @@ use crate::{
     routing::RouteManager,
     tunnel::tun_provider::TunProvider,
 };
+#[cfg(windows)]
+use crate::split_tunnel;
+#[cfg(windows)]
+use std::ffi::OsString;
 
 use futures::{
     channel::{mpsc, oneshot},
@@ -49,9 +53,9 @@ pub enum Error {
     OfflineMonitorError(#[error(source)] crate::offline::Error),
 
     /// Unable to set up split tunneling
-    #[cfg(target_os = "linux")]
+    #[cfg(target_os = "windows")]
     #[error(display = "Failed to initialize split tunneling")]
-    InitSplitTunneling(#[error(source)] crate::split_tunnel::Error),
+    InitSplitTunneling(#[error(source)] split_tunnel::Error),
 
     /// Failed to initialize the system firewall integration.
     #[error(display = "Failed to initialize the system firewall integration")]
@@ -177,6 +181,10 @@ pub enum TunnelCommand {
     Disconnect,
     /// Disconnect any open tunnel and block all network access
     Block(ErrorStateCause),
+    /// Set applications that are allowed to send and receive traffic outside of the tunnel.
+    /// TODO: Send back result
+    #[cfg(windows)]
+    SetExcludedApps(Vec<OsString>),
 }
 
 /// Asynchronous handling of the tunnel state machine.
@@ -213,6 +221,10 @@ impl TunnelStateMachine {
         let dns_monitor = DnsMonitor::new(cache_dir).map_err(Error::InitDnsMonitorError)?;
         let route_manager =
             RouteManager::new(HashSet::new()).map_err(Error::InitRouteManagerError)?;
+        
+        #[cfg(windows)]
+        let split_tunnel = split_tunnel::SplitTunnel::new().map_err(Error::InitSplitTunneling)?;
+
         let mut shared_values = SharedTunnelStateValues {
             firewall,
             dns_monitor,
@@ -224,6 +236,8 @@ impl TunnelStateMachine {
             tun_provider,
             log_dir,
             resource_dir,
+            #[cfg(windows)]
+            split_tunnel,
         };
 
         let (initial_state, _) = DisconnectedState::enter(&mut shared_values, reset_firewall);
@@ -316,6 +330,9 @@ struct SharedTunnelStateValues {
     log_dir: Option<PathBuf>,
     /// Resource directory path.
     resource_dir: PathBuf,
+    /// Management of excluded apps.
+    #[cfg(windows)]
+    split_tunnel: split_tunnel::SplitTunnel,
 }
 
 impl SharedTunnelStateValues {

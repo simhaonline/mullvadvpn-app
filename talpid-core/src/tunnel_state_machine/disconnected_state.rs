@@ -5,6 +5,10 @@ use super::{
 use crate::firewall::FirewallPolicy;
 use futures01::{sync::mpsc, Stream};
 use talpid_types::ErrorExt;
+#[cfg(windows)]
+use std::ffi::OsStr;
+#[cfg(windows)]
+use crate::split_tunnel::SplitTunnel;
 
 /// No tunnel is running.
 pub struct DisconnectedState;
@@ -34,6 +38,14 @@ impl DisconnectedState {
         if let Err(error_chain) = result {
             log::error!("{}", error_chain);
         }
+    }
+
+    fn apply_split_tunnel_config<T: AsRef<OsStr>>(split_tunnel: &SplitTunnel, paths: &[T]) {
+        split_tunnel.set_paths(paths).map_err(|e| {
+            e.display_chain_with_msg(
+                "Failed to apply split tunnel configuration",
+            )
+        });
     }
 }
 
@@ -94,6 +106,11 @@ impl TunnelState for DisconnectedState {
             }
             Ok(TunnelCommand::Connect) => NewState(ConnectingState::enter(shared_values, 0)),
             Ok(TunnelCommand::Block(reason)) => NewState(ErrorState::enter(shared_values, reason)),
+            #[cfg(windows)]
+            Ok(TunnelCommand::SetExcludedApps(paths)) => {
+                Self::apply_split_tunnel_config(&shared_values.split_tunnel, &paths);
+                SameState(self)
+            }
             Ok(_) => SameState(self),
             Err(_) => Finished,
         }

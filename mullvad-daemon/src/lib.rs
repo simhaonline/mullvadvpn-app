@@ -52,7 +52,7 @@ use std::{
     sync::{mpsc as sync_mpsc, Arc, Weak},
     time::Duration,
 };
-#[cfg(any(target_os = "linux", windows))]
+#[cfg(target_os = "linux")]
 use talpid_core::split_tunnel;
 use talpid_core::{
     mpsc::Sender,
@@ -94,7 +94,7 @@ pub enum Error {
     #[error(display = "Unable to load account history with wireguard key cache")]
     LoadAccountHistory(#[error(source)] account_history::Error),
 
-    #[cfg(any(target_os = "linux", windows))]
+    #[cfg(target_os = "linux")]
     #[error(display = "Unable to initialize split tunneling")]
     InitSplitTunneling(#[error(source)] split_tunnel::Error),
 
@@ -477,8 +477,6 @@ pub struct Daemon<L: EventListener> {
     last_generated_bridge_relay: Option<Relay>,
     app_version_info: AppVersionInfo,
     shutdown_callbacks: Vec<Box<dyn FnOnce()>>,
-    #[cfg(windows)]
-    split_tunnel: split_tunnel::SplitTunnel,
     /// oneshot channel that completes once the tunnel state machine has been shut down
     tunnel_state_machine_shutdown_signal: oneshot::Receiver<()>,
     cache_dir: PathBuf,
@@ -607,8 +605,8 @@ where
         // Attempt to download a fresh relay list
         relay_selector.update().await;
 
-        #[cfg(windows)]
-        let split_tunnel = split_tunnel::SplitTunnel::new().map_err(Error::InitSplitTunneling)?;
+        //#[cfg(windows)]
+        //let split_tunnel = split_tunnel::SplitTunnel::new().map_err(Error::InitSplitTunneling)?;
 
         let mut daemon = Daemon {
             tunnel_command_tx,
@@ -633,8 +631,8 @@ where
             last_generated_bridge_relay: None,
             app_version_info,
             shutdown_callbacks: vec![],
-            #[cfg(windows)]
-            split_tunnel,
+            //#[cfg(windows)]
+            //split_tunnel,
             tunnel_state_machine_shutdown_signal,
             cache_dir,
         };
@@ -1520,6 +1518,10 @@ where
             Ok(true) => {
                 let settings = self.settings.to_settings();
                 if settings.enable_exclusions {
+                    self.send_tunnel_command(TunnelCommand::SetExcludedApps(
+                        settings.excluded_apps.iter().map(|s| s.into()).collect()
+                    ));
+                    /*
                     match self.split_tunnel.set_paths(&settings.excluded_apps) {
                         Ok(_) => Self::oneshot_send(tx, (), "add_split_tunnel_app response"),
                         Err(e) => {
@@ -1529,8 +1531,10 @@ where
                             );
                         }
                     }
+                    */
                 }
                 self.event_listener.notify_settings(settings);
+                Self::oneshot_send(tx, (), "add_split_tunnel_app response");
             }
             Err(e) => error!("{}", e.display_chain_with_msg("Unable to save settings")),
         }
@@ -1544,6 +1548,10 @@ where
             Ok(true) => {
                 let settings = self.settings.to_settings();
                 if settings.enable_exclusions {
+                    self.send_tunnel_command(TunnelCommand::SetExcludedApps(
+                        settings.excluded_apps.iter().map(|s| s.into()).collect()
+                    ));
+                    /*
                     match self.split_tunnel.set_paths(&settings.excluded_apps) {
                         Ok(_) => Self::oneshot_send(tx, (), "remove_split_tunnel_app response"),
                         Err(e) => {
@@ -1553,8 +1561,10 @@ where
                             );
                         }
                     }
+                    */
                 }
                 self.event_listener.notify_settings(settings);
+                Self::oneshot_send(tx, (), "remove_split_tunnel_app response");
             }
             Err(e) => error!("{}", e.display_chain_with_msg("Unable to save settings")),
         }
@@ -1572,6 +1582,7 @@ where
                     vec![]
                 };
 
+                /*
                 match self.split_tunnel.set_paths(&paths) {
                     Ok(_) => Self::oneshot_send(tx, (), "set_split_tunnel_state response"),
                     Err(e) => {
@@ -1581,6 +1592,13 @@ where
                         );
                     }
                 }
+                */
+
+                self.send_tunnel_command(TunnelCommand::SetExcludedApps(
+                    paths.iter().map(|s| s.into()).collect()
+                ));
+                Self::oneshot_send(tx, (), "set_split_tunnel_state response");
+
                 self.event_listener
                     .notify_settings(self.settings.to_settings());
             }

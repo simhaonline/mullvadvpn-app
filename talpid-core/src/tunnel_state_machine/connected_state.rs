@@ -15,6 +15,10 @@ use talpid_types::{
     tunnel::{ErrorStateCause, FirewallPolicyError},
     BoxedError, ErrorExt,
 };
+#[cfg(windows)]
+use std::ffi::OsStr;
+#[cfg(windows)]
+use crate::split_tunnel::SplitTunnel;
 
 #[cfg(windows)]
 use crate::tunnel::TunnelMonitor;
@@ -88,6 +92,21 @@ impl ConnectedState {
         }
     }
 
+    #[cfg(windows)]
+    fn update_split_tunnel_addresses(&self, shared_values: &mut SharedTunnelStateValues) -> Result<(), BoxedError> {
+        // TODO: Extract tunnel IPs (expecting one IPv4, one IPv6)
+        //self.metadata.ips
+
+        // TODO: Obtain internet device IP. From RouteManager? Or from alias
+        //ConvertInterfaceAliasToLuid
+        //->
+        //Or get current best default (more consistent) route
+
+        // TODO: Add default route callback
+
+        Ok(())
+    }
+
     fn set_dns(&self, shared_values: &mut SharedTunnelStateValues) -> Result<(), BoxedError> {
         let mut dns_ips = vec![self.metadata.ipv4_gateway.into()];
         if let Some(ipv6_gateway) = self.metadata.ipv6_gateway {
@@ -120,6 +139,14 @@ impl ConnectedState {
         if let Err(error) = shared_values.route_manager.clear_routes() {
             log::error!("{}", error.display_chain_with_msg("Failed to clear routes"));
         }
+    }
+
+    fn apply_split_tunnel_config<T: AsRef<OsStr>>(split_tunnel: &SplitTunnel, paths: &[T]) {
+        split_tunnel.set_paths(paths).map_err(|e| {
+            e.display_chain_with_msg(
+                "Failed to apply split tunnel configuration",
+            )
+        });
     }
 
     fn disconnect(
@@ -180,6 +207,11 @@ impl ConnectedState {
             }
             Ok(TunnelCommand::Block(reason)) => {
                 self.disconnect(shared_values, AfterDisconnect::Block(reason))
+            }
+            #[cfg(windows)]
+            Ok(TunnelCommand::SetExcludedApps(paths)) => {
+                Self::apply_split_tunnel_config(&shared_values.split_tunnel, &paths);
+                SameState(self)
             }
         }
     }
@@ -258,6 +290,20 @@ impl TunnelState for ConnectedState {
                 ),
             )
         } else {
+            #[cfg(windows)]
+            if let Err(error) = connected_state.update_split_tunnel_addresses(shared_values) {
+                // TODO: custom error type here
+                log::error!("{}", error.display_chain_with_msg("Failed to register device addresses"));
+                return DisconnectingState::enter(
+                    shared_values,
+                    (
+                        connected_state.close_handle,
+                        connected_state.tunnel_close_event,
+                        AfterDisconnect::Block(ErrorStateCause::StartTunnelError),
+                    ),
+                );
+            }
+
             (
                 TunnelStateWrapper::from(connected_state),
                 TunnelStateTransition::Connected(tunnel_endpoint),

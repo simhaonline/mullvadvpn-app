@@ -149,6 +149,8 @@ impl OpenVpnMonitor<OpenVpnCommand> {
     where
         L: Fn(TunnelEvent) + Send + Sync + 'static,
     {
+        log::info!("OPENVPN TUNNEL PARAMETERS: {:?}", params);
+
         let user_pass_file =
             Self::create_credentials_file(&params.config.username, &params.config.password)
                 .map_err(Error::CredentialsWriteError)?;
@@ -164,6 +166,7 @@ impl OpenVpnMonitor<OpenVpnCommand> {
         };
 
         let on_openvpn_event = move |event, env| {
+            log::info!("OPENVPN EVENT: {:?}", event);
             if event == openvpn_plugin::EventType::RouteUp {
                 // The user-pass file has been read. Try to delete it early.
                 let _ = fs::remove_file(&user_pass_file_path);

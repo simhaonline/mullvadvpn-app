@@ -2,6 +2,10 @@ use super::{
     ConnectingState, DisconnectedState, ErrorState, EventConsequence, SharedTunnelStateValues,
     TunnelCommand, TunnelState, TunnelStateTransition, TunnelStateWrapper,
 };
+#[cfg(windows)]
+use std::ffi::OsStr;
+#[cfg(windows)]
+use crate::split_tunnel::SplitTunnel;
 use crate::tunnel::CloseHandle;
 use futures01::{
     sync::{mpsc, oneshot},
@@ -45,6 +49,11 @@ impl DisconnectingState {
                 }
                 Ok(TunnelCommand::Connect) => AfterDisconnect::Reconnect(0),
                 Ok(TunnelCommand::Block(reason)) => AfterDisconnect::Block(reason),
+                #[cfg(windows)]
+                Ok(TunnelCommand::SetExcludedApps(paths)) => {
+                    Self::apply_split_tunnel_config(&shared_values.split_tunnel, &paths);
+                    AfterDisconnect::Nothing
+                }
                 _ => AfterDisconnect::Nothing,
             },
             AfterDisconnect::Block(reason) => match event {
@@ -67,6 +76,11 @@ impl DisconnectingState {
                 Ok(TunnelCommand::Connect) => AfterDisconnect::Reconnect(0),
                 Ok(TunnelCommand::Disconnect) => AfterDisconnect::Nothing,
                 Ok(TunnelCommand::Block(new_reason)) => AfterDisconnect::Block(new_reason),
+                #[cfg(windows)]
+                Ok(TunnelCommand::SetExcludedApps(paths)) => {
+                    Self::apply_split_tunnel_config(&shared_values.split_tunnel, &paths);
+                    AfterDisconnect::Block(reason)
+                }
                 Err(_) => AfterDisconnect::Block(reason),
             },
             AfterDisconnect::Reconnect(retry_attempt) => match event {
@@ -88,11 +102,24 @@ impl DisconnectingState {
                 }
                 Ok(TunnelCommand::Connect) => AfterDisconnect::Reconnect(retry_attempt),
                 Ok(TunnelCommand::Disconnect) | Err(_) => AfterDisconnect::Nothing,
+                #[cfg(windows)]
+                Ok(TunnelCommand::SetExcludedApps(paths)) => {
+                    Self::apply_split_tunnel_config(&shared_values.split_tunnel, &paths);
+                    AfterDisconnect::Reconnect(retry_attempt)
+                }
                 Ok(TunnelCommand::Block(reason)) => AfterDisconnect::Block(reason),
             },
         };
 
         EventConsequence::SameState(self)
+    }
+
+    fn apply_split_tunnel_config<T: AsRef<OsStr>>(split_tunnel: &SplitTunnel, paths: &[T]) {
+        split_tunnel.set_paths(paths).map_err(|e| {
+            e.display_chain_with_msg(
+                "Failed to apply split tunnel configuration",
+            )
+        });
     }
 
     fn handle_exit_event(

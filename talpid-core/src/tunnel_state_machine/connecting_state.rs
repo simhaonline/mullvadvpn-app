@@ -26,6 +26,10 @@ use talpid_types::{
     tunnel::{ErrorStateCause, FirewallPolicyError},
     ErrorExt,
 };
+#[cfg(windows)]
+use std::ffi::OsStr;
+#[cfg(windows)]
+use crate::split_tunnel::SplitTunnel;
 
 #[cfg(target_os = "android")]
 use crate::tunnel::tun_provider;
@@ -75,6 +79,14 @@ impl ConnectingState {
                     _ => FirewallPolicyError::Generic,
                 }
             })
+    }
+
+    fn apply_split_tunnel_config<T: AsRef<OsStr>>(split_tunnel: &SplitTunnel, paths: &[T]) {
+        split_tunnel.set_paths(paths).map_err(|e| {
+            e.display_chain_with_msg(
+                "Failed to apply split tunnel configuration",
+            )
+        });
     }
 
     fn start_tunnel(
@@ -247,6 +259,11 @@ impl ConnectingState {
             }
             Ok(TunnelCommand::Block(reason)) => {
                 self.disconnect(shared_values, AfterDisconnect::Block(reason))
+            }
+            #[cfg(windows)]
+            Ok(TunnelCommand::SetExcludedApps(paths)) => {
+                Self::apply_split_tunnel_config(&shared_values.split_tunnel, &paths);
+                SameState(self)
             }
         }
     }
