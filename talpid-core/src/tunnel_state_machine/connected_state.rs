@@ -267,17 +267,12 @@ impl ConnectedState {
     fn apply_split_tunnel_config<T: AsRef<OsStr>>(
         shared_values: &SharedTunnelStateValues,
         paths: &[T],
-    ) {
+    ) -> Result<(), split_tunnel::Error> {
         let split_tunnel = shared_values
             .split_tunnel
             .lock()
             .expect("Thread unexpectedly panicked while holding the mutex");
-        if let Err(error) = split_tunnel.set_paths(paths) {
-            log::error!(
-                "{}",
-                error.display_chain_with_msg("Failed to apply split tunnel configuration")
-            );
-        }
+        split_tunnel.set_paths(paths)
     }
 
     fn disconnect(
@@ -340,8 +335,8 @@ impl ConnectedState {
                 self.disconnect(shared_values, AfterDisconnect::Block(reason))
             }
             #[cfg(windows)]
-            Ok(TunnelCommand::SetExcludedApps(paths)) => {
-                Self::apply_split_tunnel_config(shared_values, &paths);
+            Ok(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
+                let _ = result_tx.send(Self::apply_split_tunnel_config(shared_values, &paths));
                 SameState(self)
             }
         }

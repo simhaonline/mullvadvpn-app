@@ -1065,11 +1065,11 @@ where
             #[cfg(windows)]
             GetSplitTunnelApps(tx) => self.on_get_split_tunnel_apps(tx),
             #[cfg(windows)]
-            AddSplitTunnelApp(tx, path) => self.on_add_split_tunnel_app(tx, path),
+            AddSplitTunnelApp(tx, path) => self.on_add_split_tunnel_app(tx, path).await,
             #[cfg(windows)]
-            RemoveSplitTunnelApp(tx, path) => self.on_remove_split_tunnel_app(tx, path),
+            RemoveSplitTunnelApp(tx, path) => self.on_remove_split_tunnel_app(tx, path).await,
             #[cfg(windows)]
-            SetSplitTunnelState(tx, enabled) => self.on_set_split_tunnel_state(tx, enabled),
+            SetSplitTunnelState(tx, enabled) => self.on_set_split_tunnel_state(tx, enabled).await,
             Shutdown => self.trigger_shutdown_event(),
             PrepareRestart => self.on_prepare_restart(),
         }
@@ -1511,63 +1511,75 @@ where
     }
 
     #[cfg(windows)]
-    fn on_add_split_tunnel_app(&mut self, tx: oneshot::Sender<()>, path: String) {
+    async fn on_add_split_tunnel_app(&mut self, tx: oneshot::Sender<()>, path: String) {
         let save_result = self.settings.add_split_tunnel_app(&path);
         match save_result {
             Ok(false) => Self::oneshot_send(tx, (), "add_split_tunnel_app response"),
             Ok(true) => {
                 let settings = self.settings.to_settings();
                 if settings.enable_exclusions {
+                    let (result_tx, result_rx) = oneshot::channel();
                     self.send_tunnel_command(TunnelCommand::SetExcludedApps(
+                        result_tx,
                         settings.excluded_apps.iter().map(|s| s.into()).collect(),
                     ));
-                    // match self.split_tunnel.set_paths(&settings.excluded_apps) {
-                    // Ok(_) => Self::oneshot_send(tx, (), "add_split_tunnel_app response"),
-                    // Err(e) => {
-                    // log::error!(
-                    // "{}",
-                    // e.display_chain_with_msg("Failed to set excluded apps list")
-                    // );
-                    // }
-                    // }
+                    match result_rx.await {
+                        Ok(Ok(_)) => {
+                            Self::oneshot_send(tx, (), "add_split_tunnel_state response");
+                        }
+                        Ok(Err(error)) => {
+                            log::error!(
+                                "{}",
+                                error.display_chain_with_msg("Failed to set excluded apps list")
+                            );
+                        }
+                        Err(_) => log::error!("The tunnel failed to return a result"),
+                    }
+                } else {
+                    Self::oneshot_send(tx, (), "add_split_tunnel_app response");
                 }
                 self.event_listener.notify_settings(settings);
-                Self::oneshot_send(tx, (), "add_split_tunnel_app response");
             }
             Err(e) => error!("{}", e.display_chain_with_msg("Unable to save settings")),
         }
     }
 
     #[cfg(windows)]
-    fn on_remove_split_tunnel_app(&mut self, tx: oneshot::Sender<()>, path: String) {
+    async fn on_remove_split_tunnel_app(&mut self, tx: oneshot::Sender<()>, path: String) {
         let save_result = self.settings.remove_split_tunnel_app(&path);
         match save_result {
             Ok(false) => Self::oneshot_send(tx, (), "remove_split_tunnel_app response"),
             Ok(true) => {
                 let settings = self.settings.to_settings();
                 if settings.enable_exclusions {
+                    let (result_tx, result_rx) = oneshot::channel();
                     self.send_tunnel_command(TunnelCommand::SetExcludedApps(
+                        result_tx,
                         settings.excluded_apps.iter().map(|s| s.into()).collect(),
                     ));
-                    // match self.split_tunnel.set_paths(&settings.excluded_apps) {
-                    // Ok(_) => Self::oneshot_send(tx, (), "remove_split_tunnel_app response"),
-                    // Err(e) => {
-                    // log::error!(
-                    // "{}",
-                    // e.display_chain_with_msg("Failed to set excluded apps list")
-                    // );
-                    // }
-                    // }
+                    match result_rx.await {
+                        Ok(Ok(_)) => {
+                            Self::oneshot_send(tx, (), "remove_split_tunnel_state response");
+                        }
+                        Ok(Err(error)) => {
+                            log::error!(
+                                "{}",
+                                error.display_chain_with_msg("Failed to set excluded apps list")
+                            );
+                        }
+                        Err(_) => log::error!("The tunnel failed to return a result"),
+                    }
+                } else {
+                    Self::oneshot_send(tx, (), "remove_split_tunnel_state response");
                 }
                 self.event_listener.notify_settings(settings);
-                Self::oneshot_send(tx, (), "remove_split_tunnel_app response");
             }
             Err(e) => error!("{}", e.display_chain_with_msg("Unable to save settings")),
         }
     }
 
     #[cfg(windows)]
-    fn on_set_split_tunnel_state(&mut self, tx: oneshot::Sender<()>, enabled: bool) {
+    async fn on_set_split_tunnel_state(&mut self, tx: oneshot::Sender<()>, enabled: bool) {
         let save_result = self.settings.set_split_tunnel_state(enabled);
         match save_result {
             Ok(false) => Self::oneshot_send(tx, (), "set_split_tunnel_state response"),
@@ -1578,20 +1590,23 @@ where
                     vec![]
                 };
 
-                // match self.split_tunnel.set_paths(&paths) {
-                // Ok(_) => Self::oneshot_send(tx, (), "set_split_tunnel_state response"),
-                // Err(e) => {
-                // log::error!(
-                // "{}",
-                // e.display_chain_with_msg("Failed to set excluded apps list")
-                // );
-                // }
-                // }
-
+                let (result_tx, result_rx) = oneshot::channel();
                 self.send_tunnel_command(TunnelCommand::SetExcludedApps(
+                    result_tx,
                     paths.iter().map(|s| s.into()).collect(),
                 ));
-                Self::oneshot_send(tx, (), "set_split_tunnel_state response");
+                match result_rx.await {
+                    Ok(Ok(_)) => {
+                        Self::oneshot_send(tx, (), "set_split_tunnel_state response");
+                    }
+                    Ok(Err(error)) => {
+                        log::error!(
+                            "{}",
+                            error.display_chain_with_msg("Failed to set excluded apps list")
+                        );
+                    }
+                    Err(_) => log::error!("The tunnel failed to return a result"),
+                }
 
                 self.event_listener
                     .notify_settings(self.settings.to_settings());

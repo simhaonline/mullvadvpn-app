@@ -182,9 +182,11 @@ pub enum TunnelCommand {
     /// Disconnect any open tunnel and block all network access
     Block(ErrorStateCause),
     /// Set applications that are allowed to send and receive traffic outside of the tunnel.
-    /// TODO: Send back result
     #[cfg(windows)]
-    SetExcludedApps(Vec<OsString>),
+    SetExcludedApps(
+        oneshot::Sender<Result<(), split_tunnel::Error>>,
+        Vec<OsString>,
+    ),
 }
 
 /// Asynchronous handling of the tunnel state machine.

@@ -4,7 +4,7 @@ use super::{
 };
 use crate::firewall::FirewallPolicy;
 #[cfg(windows)]
-use crate::split_tunnel::SplitTunnel;
+use crate::split_tunnel;
 use futures01::{sync::mpsc, Stream};
 #[cfg(windows)]
 use std::ffi::OsStr;
@@ -43,17 +43,12 @@ impl DisconnectedState {
     fn apply_split_tunnel_config<T: AsRef<OsStr>>(
         shared_values: &SharedTunnelStateValues,
         paths: &[T],
-    ) {
+    ) -> Result<(), split_tunnel::Error> {
         let split_tunnel = shared_values
             .split_tunnel
             .lock()
             .expect("Thread unexpectedly panicked while holding the mutex");
-        if let Err(error) = split_tunnel.set_paths(paths) {
-            log::error!(
-                "{}",
-                error.display_chain_with_msg("Failed to apply split tunnel configuration")
-            );
-        }
+        split_tunnel.set_paths(paths)
     }
 }
 
@@ -115,8 +110,8 @@ impl TunnelState for DisconnectedState {
             Ok(TunnelCommand::Connect) => NewState(ConnectingState::enter(shared_values, 0)),
             Ok(TunnelCommand::Block(reason)) => NewState(ErrorState::enter(shared_values, reason)),
             #[cfg(windows)]
-            Ok(TunnelCommand::SetExcludedApps(paths)) => {
-                Self::apply_split_tunnel_config(shared_values, &paths);
+            Ok(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
+                let _ = result_tx.send(Self::apply_split_tunnel_config(shared_values, &paths));
                 SameState(self)
             }
             Ok(_) => SameState(self),

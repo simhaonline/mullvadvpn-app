@@ -3,7 +3,7 @@ use super::{
     TunnelCommand, TunnelState, TunnelStateTransition, TunnelStateWrapper,
 };
 #[cfg(windows)]
-use crate::split_tunnel::SplitTunnel;
+use crate::split_tunnel;
 use crate::tunnel::CloseHandle;
 use futures01::{
     sync::{mpsc, oneshot},
@@ -50,8 +50,8 @@ impl DisconnectingState {
                 Ok(TunnelCommand::Connect) => AfterDisconnect::Reconnect(0),
                 Ok(TunnelCommand::Block(reason)) => AfterDisconnect::Block(reason),
                 #[cfg(windows)]
-                Ok(TunnelCommand::SetExcludedApps(paths)) => {
-                    Self::apply_split_tunnel_config(shared_values, &paths);
+                Ok(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
+                    let _ = result_tx.send(Self::apply_split_tunnel_config(shared_values, &paths));
                     AfterDisconnect::Nothing
                 }
                 _ => AfterDisconnect::Nothing,
@@ -77,8 +77,8 @@ impl DisconnectingState {
                 Ok(TunnelCommand::Disconnect) => AfterDisconnect::Nothing,
                 Ok(TunnelCommand::Block(new_reason)) => AfterDisconnect::Block(new_reason),
                 #[cfg(windows)]
-                Ok(TunnelCommand::SetExcludedApps(paths)) => {
-                    Self::apply_split_tunnel_config(shared_values, &paths);
+                Ok(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
+                    let _ = result_tx.send(Self::apply_split_tunnel_config(shared_values, &paths));
                     AfterDisconnect::Block(reason)
                 }
                 Err(_) => AfterDisconnect::Block(reason),
@@ -103,8 +103,8 @@ impl DisconnectingState {
                 Ok(TunnelCommand::Connect) => AfterDisconnect::Reconnect(retry_attempt),
                 Ok(TunnelCommand::Disconnect) | Err(_) => AfterDisconnect::Nothing,
                 #[cfg(windows)]
-                Ok(TunnelCommand::SetExcludedApps(paths)) => {
-                    Self::apply_split_tunnel_config(shared_values, &paths);
+                Ok(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
+                    let _ = result_tx.send(Self::apply_split_tunnel_config(shared_values, &paths));
                     AfterDisconnect::Reconnect(retry_attempt)
                 }
                 Ok(TunnelCommand::Block(reason)) => AfterDisconnect::Block(reason),
@@ -117,17 +117,12 @@ impl DisconnectingState {
     fn apply_split_tunnel_config<T: AsRef<OsStr>>(
         shared_values: &SharedTunnelStateValues,
         paths: &[T],
-    ) {
+    ) -> Result<(), split_tunnel::Error> {
         let split_tunnel = shared_values
             .split_tunnel
             .lock()
             .expect("Thread unexpectedly panicked while holding the mutex");
-        if let Err(error) = split_tunnel.set_paths(paths) {
-            log::error!(
-                "{}",
-                error.display_chain_with_msg("Failed to apply split tunnel configuration")
-            );
-        }
+        split_tunnel.set_paths(paths)
     }
 
     fn handle_exit_event(
