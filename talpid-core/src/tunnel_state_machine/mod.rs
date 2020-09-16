@@ -90,6 +90,7 @@ pub async fn spawn(
     shutdown_tx: oneshot::Sender<()>,
     reset_firewall: bool,
     #[cfg(target_os = "android")] android_context: AndroidContext,
+    #[cfg(windows)] exclude_paths: Vec<OsString>,
 ) -> Result<Arc<mpsc::UnboundedSender<TunnelCommand>>, Error> {
     let (command_tx, mut command_rx) = mpsc::unbounded();
     let command_tx = Arc::new(command_tx);
@@ -132,6 +133,7 @@ pub async fn spawn(
             cache_dir,
             command_adapter_rx,
             reset_firewall,
+            exclude_paths,
         );
         let state_machine = match state_machine {
             Ok(state_machine) => {
@@ -213,6 +215,7 @@ impl TunnelStateMachine {
         cache_dir: impl AsRef<Path>,
         commands: old_mpsc::UnboundedReceiver<TunnelCommand>,
         reset_firewall: bool,
+        #[cfg(windows)] exclude_paths: Vec<OsString>,
     ) -> Result<Self, Error> {
         let args = FirewallArguments {
             initialize_blocked: block_when_disconnected || !reset_firewall,
@@ -226,6 +229,10 @@ impl TunnelStateMachine {
 
         #[cfg(windows)]
         let split_tunnel = split_tunnel::SplitTunnel::new().map_err(Error::InitSplitTunneling)?;
+        #[cfg(windows)]
+        split_tunnel
+            .set_paths(&exclude_paths)
+            .map_err(Error::InitSplitTunneling)?;
 
         let mut shared_values = SharedTunnelStateValues {
             firewall,

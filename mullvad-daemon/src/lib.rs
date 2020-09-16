@@ -41,6 +41,8 @@ use mullvad_types::{
     wireguard::KeygenEvent,
 };
 use settings::SettingsPersister;
+#[cfg(target_os = "windows")]
+use std::ffi::OsString;
 #[cfg(not(target_os = "android"))]
 use std::path::Path;
 use std::{
@@ -582,6 +584,12 @@ where
             TargetState::Unsecured
         };
 
+        #[cfg(windows)]
+        let exclude_apps = settings
+            .excluded_apps
+            .iter()
+            .map(|s| OsString::from(s))
+            .collect();
 
         let tunnel_command_tx = tunnel_state_machine::spawn(
             settings.allow_lan,
@@ -595,6 +603,8 @@ where
             initial_target_state != TargetState::Secured,
             #[cfg(target_os = "android")]
             android_context,
+            #[cfg(windows)]
+            exclude_apps,
         )
         .await
         .map_err(Error::TunnelError)?;
