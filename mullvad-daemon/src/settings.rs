@@ -3,6 +3,8 @@ use mullvad_types::{
     relay_constraints::{BridgeSettings, BridgeState, RelaySettingsUpdate},
     settings::Settings,
 };
+#[cfg(target_os = "windows")]
+use std::collections::HashSet;
 use std::{
     fs::{self, File},
     io,
@@ -243,29 +245,10 @@ impl SettingsPersister {
     }
 
     #[cfg(windows)]
-    pub fn add_split_tunnel_app(&mut self, path: &str) -> Result<bool, Error> {
-        let should_save = !self
-            .settings
-            .excluded_apps
-            .iter()
-            .any(|curpath| curpath == path);
+    pub fn set_split_tunnel_apps(&mut self, paths: HashSet<String>) -> Result<bool, Error> {
+        let should_save = paths != self.settings.excluded_apps;
         if should_save {
-            self.settings.excluded_apps.push(path.to_string());
-        }
-        self.update(should_save)
-    }
-
-    #[cfg(windows)]
-    pub fn remove_split_tunnel_app(&mut self, path: &str) -> Result<bool, Error> {
-        let should_save = self
-            .settings
-            .excluded_apps
-            .iter()
-            .any(|curpath| curpath == path);
-        if should_save {
-            self.settings
-                .excluded_apps
-                .retain(|curpath| curpath != path);
+            self.settings.excluded_apps = paths;
         }
         self.update(should_save)
     }

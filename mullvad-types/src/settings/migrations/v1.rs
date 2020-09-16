@@ -8,6 +8,8 @@ use crate::{
     settings::TunnelOptions,
 };
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "windows")]
+use std::collections::HashSet;
 use std::io::Read;
 use talpid_types::net::TunnelType;
 
@@ -72,7 +74,7 @@ impl super::SettingsMigration for Migration {
                 #[cfg(windows)]
                 enable_exclusions: true,
                 #[cfg(windows)]
-                excluded_apps: Vec::new(),
+                excluded_apps: HashSet::new(),
                 settings_version: super::SettingsVersion::V2,
             }),
             VersionedSettings::V2(new) => VersionedSettings::V2(new),

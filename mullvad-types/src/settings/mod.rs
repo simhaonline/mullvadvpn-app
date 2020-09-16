@@ -7,6 +7,8 @@ use jnix::IntoJava;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use serde_json;
+#[cfg(target_os = "windows")]
+use std::collections::HashSet;
 use talpid_types::net::{openvpn, wireguard, GenericTunnelOptions};
 
 mod migrations;
@@ -56,7 +58,7 @@ pub struct Settings {
     pub enable_exclusions: bool,
     /// List of applications to exclude from the tunnel.
     #[cfg(windows)]
-    pub excluded_apps: Vec<String>,
+    pub excluded_apps: HashSet<String>,
     /// Specifies settings schema version
     #[cfg_attr(target_os = "android", jnix(skip))]
     settings_version: migrations::SettingsVersion,
@@ -85,7 +87,7 @@ impl Default for Settings {
             #[cfg(windows)]
             enable_exclusions: default_exclusions_flag(),
             #[cfg(windows)]
-            excluded_apps: Vec::new(),
+            excluded_apps: HashSet::new(),
             settings_version: migrations::SettingsVersion::V2,
         }
     }
