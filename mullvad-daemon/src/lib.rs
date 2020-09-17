@@ -606,7 +606,7 @@ where
         relay_selector.update().await;
 
         //#[cfg(windows)]
-        //let split_tunnel = split_tunnel::SplitTunnel::new().map_err(Error::InitSplitTunneling)?;
+        // let split_tunnel = split_tunnel::SplitTunnel::new().map_err(Error::InitSplitTunneling)?;
 
         let mut daemon = Daemon {
             tunnel_command_tx,
@@ -632,7 +632,7 @@ where
             app_version_info,
             shutdown_callbacks: vec![],
             //#[cfg(windows)]
-            //split_tunnel,
+            // split_tunnel,
             tunnel_state_machine_shutdown_signal,
             cache_dir,
         };
@@ -1519,19 +1519,17 @@ where
                 let settings = self.settings.to_settings();
                 if settings.enable_exclusions {
                     self.send_tunnel_command(TunnelCommand::SetExcludedApps(
-                        settings.excluded_apps.iter().map(|s| s.into()).collect()
+                        settings.excluded_apps.iter().map(|s| s.into()).collect(),
                     ));
-                    /*
-                    match self.split_tunnel.set_paths(&settings.excluded_apps) {
-                        Ok(_) => Self::oneshot_send(tx, (), "add_split_tunnel_app response"),
-                        Err(e) => {
-                            log::error!(
-                                "{}",
-                                e.display_chain_with_msg("Failed to set excluded apps list")
-                            );
-                        }
-                    }
-                    */
+                    // match self.split_tunnel.set_paths(&settings.excluded_apps) {
+                    // Ok(_) => Self::oneshot_send(tx, (), "add_split_tunnel_app response"),
+                    // Err(e) => {
+                    // log::error!(
+                    // "{}",
+                    // e.display_chain_with_msg("Failed to set excluded apps list")
+                    // );
+                    // }
+                    // }
                 }
                 self.event_listener.notify_settings(settings);
                 Self::oneshot_send(tx, (), "add_split_tunnel_app response");
@@ -1549,19 +1547,17 @@ where
                 let settings = self.settings.to_settings();
                 if settings.enable_exclusions {
                     self.send_tunnel_command(TunnelCommand::SetExcludedApps(
-                        settings.excluded_apps.iter().map(|s| s.into()).collect()
+                        settings.excluded_apps.iter().map(|s| s.into()).collect(),
                     ));
-                    /*
-                    match self.split_tunnel.set_paths(&settings.excluded_apps) {
-                        Ok(_) => Self::oneshot_send(tx, (), "remove_split_tunnel_app response"),
-                        Err(e) => {
-                            log::error!(
-                                "{}",
-                                e.display_chain_with_msg("Failed to set excluded apps list")
-                            );
-                        }
-                    }
-                    */
+                    // match self.split_tunnel.set_paths(&settings.excluded_apps) {
+                    // Ok(_) => Self::oneshot_send(tx, (), "remove_split_tunnel_app response"),
+                    // Err(e) => {
+                    // log::error!(
+                    // "{}",
+                    // e.display_chain_with_msg("Failed to set excluded apps list")
+                    // );
+                    // }
+                    // }
                 }
                 self.event_listener.notify_settings(settings);
                 Self::oneshot_send(tx, (), "remove_split_tunnel_app response");
@@ -1582,20 +1578,18 @@ where
                     vec![]
                 };
 
-                /*
-                match self.split_tunnel.set_paths(&paths) {
-                    Ok(_) => Self::oneshot_send(tx, (), "set_split_tunnel_state response"),
-                    Err(e) => {
-                        log::error!(
-                            "{}",
-                            e.display_chain_with_msg("Failed to set excluded apps list")
-                        );
-                    }
-                }
-                */
+                // match self.split_tunnel.set_paths(&paths) {
+                // Ok(_) => Self::oneshot_send(tx, (), "set_split_tunnel_state response"),
+                // Err(e) => {
+                // log::error!(
+                // "{}",
+                // e.display_chain_with_msg("Failed to set excluded apps list")
+                // );
+                // }
+                // }
 
                 self.send_tunnel_command(TunnelCommand::SetExcludedApps(
-                    paths.iter().map(|s| s.into()).collect()
+                    paths.iter().map(|s| s.into()).collect(),
                 ));
                 Self::oneshot_send(tx, (), "set_split_tunnel_state response");
 
