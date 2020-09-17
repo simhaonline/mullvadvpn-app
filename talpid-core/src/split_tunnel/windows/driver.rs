@@ -185,6 +185,9 @@ impl DeviceHandle {
             0,
         )?;
 
+        let state = self.get_driver_state()?;
+        log::debug!("reg'd DRIVER STATE: {:?}", state);
+
         Ok(())
     }
 
@@ -205,6 +208,12 @@ impl DeviceHandle {
         for app in apps.as_ref() {
             device_paths.push(get_final_path_name(app)?);
         }
+
+        log::debug!("Excluded device paths:");
+        for path in &device_paths {
+            log::debug!("    {:?}", path);
+        }
+
         let config = make_process_config(&device_paths);
 
         device_io_control(
@@ -213,6 +222,9 @@ impl DeviceHandle {
             Some(&config),
             0,
         )?;
+
+        let state = self.get_driver_state()?;
+        log::debug!("DRIVER STATE: {:?}", state);
 
         Ok(())
     }
