@@ -283,6 +283,24 @@ impl ConnectedState {
         Self::reset_dns(shared_values);
         Self::reset_routes(shared_values);
 
+        if let Err(error) = shared_values
+            .split_tunnel
+            .lock()
+            .expect("Thread unexpectedly panicked while holding the mutex")
+            .register_ips(
+                Ipv4Addr::new(0, 0, 0, 0),
+                None,
+                Ipv4Addr::new(0, 0, 0, 0),
+                None,
+            )
+        {
+            // TODO: Error state?
+            log::error!(
+                "{}",
+                error.display_chain_with_msg("Failed to unregister IP addresses")
+            );
+        }
+
         EventConsequence::NewState(DisconnectingState::enter(
             shared_values,
             (self.close_handle, self.tunnel_close_event, after_disconnect),
