@@ -3,15 +3,15 @@ use super::{
     TunnelState, TunnelStateTransition, TunnelStateWrapper,
 };
 use crate::firewall::FirewallPolicy;
+#[cfg(windows)]
+use crate::split_tunnel::SplitTunnel;
 use futures01::{sync::mpsc, Stream};
+#[cfg(windows)]
+use std::ffi::OsStr;
 use talpid_types::{
     tunnel::{self as talpid_tunnel, ErrorStateCause, FirewallPolicyError},
     ErrorExt,
 };
-#[cfg(windows)]
-use std::ffi::OsStr;
-#[cfg(windows)]
-use crate::split_tunnel::SplitTunnel;
 
 /// No tunnel is running and all network connections are blocked.
 pub struct ErrorState {
@@ -62,12 +62,20 @@ impl ErrorState {
         }
     }
 
-    fn apply_split_tunnel_config<T: AsRef<OsStr>>(split_tunnel: &SplitTunnel, paths: &[T]) {
-        split_tunnel.set_paths(paths).map_err(|e| {
-            e.display_chain_with_msg(
-                "Failed to apply split tunnel configuration",
-            )
-        });
+    fn apply_split_tunnel_config<T: AsRef<OsStr>>(
+        shared_values: &SharedTunnelStateValues,
+        paths: &[T],
+    ) {
+        let split_tunnel = shared_values
+            .split_tunnel
+            .lock()
+            .expect("Thread unexpectedly panicked while holding the mutex");
+        if let Err(error) = split_tunnel.set_paths(paths) {
+            log::error!(
+                "{}",
+                error.display_chain_with_msg("Failed to apply split tunnel configuration")
+            );
+        }
     }
 }
 
@@ -133,7 +141,7 @@ impl TunnelState for ErrorState {
             #[cfg(windows)]
             Ok(TunnelCommand::SetExcludedApps(paths)) => {
                 // TODO: Do nothing here?
-                Self::apply_split_tunnel_config(&shared_values.split_tunnel, &paths);
+                Self::apply_split_tunnel_config(shared_values, &paths);
                 SameState(self)
             }
         }

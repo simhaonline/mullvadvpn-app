@@ -3,6 +3,8 @@ use super::{
     EventConsequence, SharedTunnelStateValues, TunnelCommand, TunnelState, TunnelStateTransition,
     TunnelStateWrapper,
 };
+#[cfg(windows)]
+use crate::split_tunnel::SplitTunnel;
 use crate::{
     firewall::FirewallPolicy,
     routing::RouteManager,
@@ -15,6 +17,8 @@ use futures01::{
     Async, Future, Stream,
 };
 use log::{debug, error, info, trace, warn};
+#[cfg(windows)]
+use std::ffi::OsStr;
 use std::{
     net::IpAddr,
     path::{Path, PathBuf},
@@ -26,10 +30,6 @@ use talpid_types::{
     tunnel::{ErrorStateCause, FirewallPolicyError},
     ErrorExt,
 };
-#[cfg(windows)]
-use std::ffi::OsStr;
-#[cfg(windows)]
-use crate::split_tunnel::SplitTunnel;
 
 #[cfg(target_os = "android")]
 use crate::tunnel::tun_provider;
@@ -81,12 +81,20 @@ impl ConnectingState {
             })
     }
 
-    fn apply_split_tunnel_config<T: AsRef<OsStr>>(split_tunnel: &SplitTunnel, paths: &[T]) {
-        split_tunnel.set_paths(paths).map_err(|e| {
-            e.display_chain_with_msg(
-                "Failed to apply split tunnel configuration",
-            )
-        });
+    fn apply_split_tunnel_config<T: AsRef<OsStr>>(
+        shared_values: &SharedTunnelStateValues,
+        paths: &[T],
+    ) {
+        let split_tunnel = shared_values
+            .split_tunnel
+            .lock()
+            .expect("Thread unexpectedly panicked while holding the mutex");
+        if let Err(error) = split_tunnel.set_paths(paths) {
+            log::error!(
+                "{}",
+                error.display_chain_with_msg("Failed to apply split tunnel configuration")
+            );
+        }
     }
 
     fn start_tunnel(
@@ -262,7 +270,7 @@ impl ConnectingState {
             }
             #[cfg(windows)]
             Ok(TunnelCommand::SetExcludedApps(paths)) => {
-                Self::apply_split_tunnel_config(&shared_values.split_tunnel, &paths);
+                Self::apply_split_tunnel_config(shared_values, &paths);
                 SameState(self)
             }
         }

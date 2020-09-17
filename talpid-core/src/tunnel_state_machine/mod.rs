@@ -14,6 +14,8 @@ use self::{
     disconnecting_state::{AfterDisconnect, DisconnectingState},
     error_state::ErrorState,
 };
+#[cfg(windows)]
+use crate::split_tunnel;
 use crate::{
     dns::DnsMonitor,
     firewall::{Firewall, FirewallArguments},
@@ -22,8 +24,6 @@ use crate::{
     routing::RouteManager,
     tunnel::tun_provider::TunProvider,
 };
-#[cfg(windows)]
-use crate::split_tunnel;
 #[cfg(windows)]
 use std::ffi::OsString;
 
@@ -36,7 +36,7 @@ use std::{
     collections::HashSet,
     io,
     path::{Path, PathBuf},
-    sync::{mpsc as sync_mpsc, Arc},
+    sync::{mpsc as sync_mpsc, Arc, Mutex},
 };
 #[cfg(target_os = "android")]
 use talpid_types::{android::AndroidContext, ErrorExt};
@@ -221,7 +221,7 @@ impl TunnelStateMachine {
         let dns_monitor = DnsMonitor::new(cache_dir).map_err(Error::InitDnsMonitorError)?;
         let route_manager =
             RouteManager::new(HashSet::new()).map_err(Error::InitRouteManagerError)?;
-        
+
         #[cfg(windows)]
         let split_tunnel = split_tunnel::SplitTunnel::new().map_err(Error::InitSplitTunneling)?;
 
@@ -237,7 +237,7 @@ impl TunnelStateMachine {
             log_dir,
             resource_dir,
             #[cfg(windows)]
-            split_tunnel,
+            split_tunnel: Arc::new(Mutex::new(split_tunnel)),
         };
 
         let (initial_state, _) = DisconnectedState::enter(&mut shared_values, reset_firewall);
@@ -332,7 +332,7 @@ struct SharedTunnelStateValues {
     resource_dir: PathBuf,
     /// Management of excluded apps.
     #[cfg(windows)]
-    split_tunnel: split_tunnel::SplitTunnel,
+    split_tunnel: Arc<Mutex<split_tunnel::SplitTunnel>>,
 }
 
 impl SharedTunnelStateValues {
