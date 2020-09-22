@@ -228,6 +228,17 @@ impl DeviceHandle {
 
         Ok(())
     }
+
+    pub fn clear_config(&self) -> io::Result<()> {
+        device_io_control(
+            self.handle.as_raw_handle(),
+            DriverIoctlCode::ClearConfiguration as u32,
+            None,
+            0,
+        )?;
+
+        Ok(())
+    }
 }
 
 #[repr(C)]
