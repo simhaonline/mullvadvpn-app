@@ -179,8 +179,12 @@ impl OpenVpnMonitor<OpenVpnCommand> {
                 route_manager_tx
                     .unbounded_send(routing::RouteManagerCommand::SetTunnelLink(interface))
                     .unwrap();
+                log::info!("Here 1");
+                std::thread::sleep_ms(3000);
+                log::info!("Here 2");
             }
             if event == openvpn_plugin::EventType::RouteUp {
+                log::info!("Here 3");
                 // The user-pass file has been read. Try to delete it early.
                 let _ = fs::remove_file(&user_pass_file_path);
 
