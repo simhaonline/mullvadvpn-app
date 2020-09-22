@@ -40,7 +40,7 @@ pub enum Error {
 
     /// Failed to set up routing.
     #[error(display = "Failed to setup routing")]
-    SetupRoutingError(#[error(source)] crate::routing::Error),
+    SetupRoutingError(#[error(source)] routing::Error),
 
     /// Unable to start, wait for or kill the OpenVPN process.
     #[error(display = "Error in OpenVPN process management: {}", _0)]
