@@ -42,6 +42,8 @@ static BASE_ARGUMENTS: &[&[&str]] = &[
         "vpn_gateway",
         "1",
     ],
+    #[cfg(windows)]
+    &["--ip-win32", "ipapi"],
 ];
 
 static ALLOWED_TLS1_2_CIPHERS: &[&str] = &[
