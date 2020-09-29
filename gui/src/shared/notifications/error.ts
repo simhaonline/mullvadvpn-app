@@ -126,10 +126,10 @@ function getBlockMessage(blockReason: ErrorStateCause): string {
         'in-app-notifications',
         'This device is offline, no tunnels can be established',
       );
-    case 'tap_adapter_problem':
+    case 'virtual_adapter_problem':
       return messages.pgettext(
         'in-app-notifications',
-        "Unable to detect a working TAP adapter on this device. If you've disabled it, enable it again. Otherwise, please reinstall the app",
+        "Unable to detect a working virtual adapter on this device. If you've disabled it, enable it again. Otherwise, please reinstall the app",
       );
   }
 }
